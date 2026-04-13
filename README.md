@@ -1,118 +1,252 @@
-# Drosera Trap Foundry Template
+# Aegis V3 Sentinel — Ethereum Mainnet
 
-This repo is for quickly bootstrapping a new Drosera project. It includes instructions for creating your first trap, deploying it to the Drosera network, and updating it on the fly.
+> A production-grade Drosera Trap monitoring the **Lido V3 stVaults ecosystem** on Ethereum Mainnet — detecting bad debt, protocol pauses, vault health degradation, wstETH rate drops, and external ratio breaches with automated on-chain response and early warning alerts.
 
-[![view - Documentation](https://img.shields.io/badge/view-Documentation-blue?style=for-the-badge)](https://dev.drosera.io "Project documentation")
-[![Twitter](https://img.shields.io/twitter/follow/DroseraNetwork?style=for-the-badge)](https://x.com/DroseraNetwork)
+---
 
-## Configure dev environment
+## Overview
 
-```bash
-curl -L https://foundry.paradigm.xyz | bash
-foundryup
+This repository contains two contracts that work together as a complete Drosera Trap system on Ethereum Mainnet:
 
-# The trap-foundry-template utilizes node modules for dependency management
-# install Bun (optional)
-curl -fsSL https://bun.sh/install | bash
+| Contract | Role | Address |
+|---|---|---|
+| `AegisV3Sentinel` | Drosera Trap — collects & analyses Lido V3 stVaults state | [`0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4`](https://etherscan.io/address/0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4) |
+| `AegisV3Response` | Response contract — records risk events on-chain | [`0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92`](https://etherscan.io/address/0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92) |
 
-# install node modules
-bun install
+**Operator:** [`0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8`](https://etherscan.io/address/0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8)
 
-# install vscode (optional)
-# - add solidity extension JuanBlanco.solidity
+> **Part of a 2-trap mainnet deployment:**
+> - [Lido Sentinel Mainnet](https://github.com/DAOmindbreaker/lido-sentinel-mainnet) — Lido core protocol accounting health
+> - **Aegis V3 Sentinel** (this repo) — Lido V3 stVaults ecosystem monitoring
 
-# install drosera-cli
-curl -L https://app.drosera.io/install | bash
-droseraup
+---
+
+## Why Aegis V3?
+
+Lido V3 launched stVaults on Ethereum mainnet on January 30, 2026 — introducing modular, customizable staking infrastructure. With 12+ active vaults and growing institutional adoption, monitoring the health of this ecosystem is critical.
+
+**Aegis V3 Sentinel** fills this gap by providing real-time, decentralized monitoring of the entire stVaults ecosystem through the Drosera protocol — covering bad debt, protocol pauses, vault health, redemption rates, and external share ratios.
+
+---
+
+## Contracts Monitored (Lido V3 on Ethereum Mainnet)
+
+| Contract | Address | Role |
+|---|---|---|
+| VaultHub | [`0x1d201BE093d847f6446530Efb0E8Fb426d176709`](https://etherscan.io/address/0x1d201BE093d847f6446530Efb0E8Fb426d176709) | stVaults coordination, vault health enforcement |
+| stETH | [`0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84`](https://etherscan.io/address/0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84) | Liquid staking token + V3 accounting functions |
+| wstETH | [`0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0`](https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0) | Wrapped stETH, redemption rate source |
+
+> **Mainnet note:** On Ethereum mainnet, Accounting functions (`getExternalShares`, `getMaxExternalRatioBP`) are integrated into the stETH contract directly, unlike Hoodi testnet where they live in a separate Accounting contract.
+
+---
+
+## Data Collection
+
+Every block sample, `collect()` captures an `AegisSnapshot` struct:
+
+```solidity
+struct AegisSnapshot {
+    // VaultHub state
+    uint256 vaultsCount;           // Total connected stVaults
+    uint256 badDebt;               // Bad debt pending internalization (wei)
+    bool    protocolPaused;        // VaultHub pause status
+    uint256 unhealthyVaults;       // Count of unhealthy vaults in sample
+    uint256 totalShortfallShares;  // Aggregate health shortfall (shares)
+    uint256 sampleSize;            // Actual vaults sampled
+
+    // wstETH / stETH state
+    uint256 wstEthRate;            // ETH per 1e18 wstETH (scaled 1e18)
+    uint256 totalPooledEther;      // Total ETH in Lido (wei)
+    uint256 totalShares;           // Total stETH shares
+
+    // Accounting cross-check
+    uint256 externalShares;        // External shares minted via stVaults
+    uint256 maxExternalRatioBp;    // Protocol cap (basis points)
+    uint256 externalRatioBps;      // Current ratio (basis points)
+
+    bool    valid;                 // False if any critical call reverted
+}
 ```
 
-open the VScode preferences and Select `Soldity: Change workpace compiler version (Remote)`
+### Adaptive Vault Sampling
 
-Select version `0.8.12`
+With 12+ vaults on mainnet (and growing), Aegis uses a **stride-based sampling pattern** to efficiently cover the vault set:
+- Samples up to 25 vaults per block
+- Uses distributed index stride for representative coverage
+- VaultHub uses **1-indexed** vault access on mainnet
 
-## Quick Start
+---
 
-The following drosera commands set the `DROSERA_PRIVATE_KEY` environment variable in the command line but you can also use a `.env` file to store the private key of the account you want to use to deploy the trap.
+## Detection Logic — 5 Risk Checks
 
-### Hello World Trap
+`shouldRespond()` analyses 3 consecutive snapshots:
 
-The drosera.toml file is configured to deploy a simple "Hello, World!" trap. Ensure the drosera.toml file is set to the following configuration:
+### Check A — Bad Debt Spike (CRITICAL, id=1)
+**Immediate trigger** if `badDebtToInternalize > 0`. Any bad debt in VaultHub is an emergency — indicates under-collateralized vaults threatening stETH solvency.
+
+### Check B — Protocol Pause (CRITICAL, id=2)
+Triggers if VaultHub transitions from **unpaused to paused** between mid and current snapshots. A pause signals the protocol has detected critical conditions requiring intervention.
+
+### Check C — Vault Health Degradation (HIGH, id=3)
+Triggers if **≥12% of sampled vaults** are unhealthy in both current and mid snapshots. Proportional threshold prevents false positives from single-vault issues while catching systemic degradation.
+
+### Check D — wstETH Rate Drop (HIGH, id=4)
+Triggers if wstETH redemption rate drops **>3% (300 bps)** from oldest to current, with mid-sample confirmation. Sustained rate decline indicates potential accounting anomaly or mass slashing.
+
+### Check E — External Ratio Breach (CRITICAL, id=5)
+Triggers if external shares ratio **exceeds the protocol cap** across all 3 snapshots. A sustained breach means stVaults have minted more stETH than the protocol allows — systemic risk to all stETH holders.
+
+---
+
+## Early Warning System — 4 Alert Signals
+
+`shouldAlert()` fires before hard triggers:
+
+| Alert | ID | Condition | Purpose |
+|---|---|---|---|
+| Unhealthy Vault | 10 | Any unhealthy vault sustained across 2 samples | Early degradation signal |
+| Rate Soft Drop | 11 | wstETH rate drop >1% (100 bps) | Pre-Check D warning |
+| Ratio Approaching Cap | 12 | External ratio within 500 bps of cap | Pre-Check E warning |
+| Pre-Bad-Debt Shortfall | 13 | Health shortfall with zero bad debt | Shortfall before bad debt materializes |
+
+---
+
+## Response Contract
+
+`AegisV3Response` receives all risk reports through a single entrypoint:
+
+```solidity
+function handleRisk(uint8 checkId, uint256 a, uint256 b, uint256 c) external
+```
+
+### Events Emitted
+
+| Check ID | Event | Severity |
+|---|---|---|
+| 1 | `BadDebtDetected` | CRITICAL |
+| 2 | `ProtocolPauseDetected` | CRITICAL |
+| 3 | `VaultHealthDegradation` | HIGH |
+| 4 | `RedemptionRateDrop` | HIGH |
+| 5 | `ExternalRatioBreach` | CRITICAL |
+| other | `UnknownRiskSignal` | — |
+
+### State Tracking
+
+```solidity
+uint256 public totalRiskEvents;   // Total risk events recorded
+uint256 public lastRiskBlock;     // Last block a risk event was recorded
+uint8   public lastCheckId;       // Last check ID that triggered
+```
+
+---
+
+## Trap Configuration
 
 ```toml
-response_contract = "0xdA890040Af0533D98B9F5f8FE3537720ABf83B0C"
-response_function = "helloworld(string)"
+[traps.aegis_v3_sentinel]
+path                    = "out/AegisV3Sentinel.sol/AegisV3Sentinel.json"
+response_contract       = "0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92"
+response_function       = "handleRisk(uint8,uint256,uint256,uint256)"
+cooldown_period_blocks  = 33
+min_number_of_operators = 1
+max_number_of_operators = 3
+block_sample_size       = 3
+private_trap            = true
+whitelist               = ["0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8"]
+address                 = "0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4"
 ```
 
-To deploy the trap, run the following commands:
+---
+
+## Dryrun Stats
+
+```
+trap_name         : aegis_v3_sentinel
+trap_hash         : 0xa578bf7f57448d26b70f07da3c31aebec474d86c7ccafeb982bba8cb29ab29c9
+collect() gas     : 491,399
+shouldRespond()   : 37,311
+shouldAlert()     : active
+accounts queried  : 8
+slots queried     : 83
+```
+
+---
+
+## Mainnet Differences from Testnet
+
+| Aspect | Hoodi Testnet | Ethereum Mainnet |
+|---|---|---|
+| VaultHub | `0x4C9fFC...` | `0x1d201BE093d847f6446530Efb0E8Fb426d176709` |
+| Accounting | Separate contract (`0x9b5b78...`) | Integrated in stETH contract |
+| stETH | `0x3508A9...` | `0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84` |
+| wstETH | `0x7E99eE...` | `0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0` |
+| VaultHub indexing | 0-indexed | **1-indexed** (index 0 reverts) |
+| Active vaults | ~2-3 | 12+ and growing |
+
+---
+
+## Repository Structure
+
+```
+src/
+├── AegisV3Sentinel.sol    Drosera Trap — ITrap implementation (mainnet)
+└── AegisV3Response.sol    Response contract — on-chain risk recorder
+script/
+└── Deploy.s.sol           Forge deployment script (Response contract)
+```
+
+---
+
+## Deployment
+
+### Prerequisites
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- [Drosera CLI](https://app.drosera.io/install)
+- Active [Drosera Subscription](https://app.drosera.io/early-supporters-initiative)
+
+### Deploy Response Contract
 
 ```bash
-# Compile the Trap
 forge build
-
-# Deploy the Trap
-DROSERA_PRIVATE_KEY=0x.. drosera apply
+forge script script/Deploy.s.sol:Deploy --rpc-url <ETH_MAINNET_RPC> --private-key <PRIVATE_KEY> --broadcast
 ```
 
-After successfully deploying the trap, the CLI will add an `address` field to the `drosera.toml` file.
-
-Congratulations! You have successfully deployed your first trap!
-
-### Response Trap
-
-You can then update the trap by changing its logic and recompling it or changing the path field in the `drosera.toml` file to point to the Response Trap.
-
-The Response Trap is designed to trigger a response at a specific block number. To test the Response Trap, pick a future block number and update the Response Trap.
-Specify a response contract address and function signature in the drosera.toml file to the following:
-
-```toml
-response_contract = "0x183D78491555cb69B68d2354F7373cc2632508C7"
-response_function = "responseCallback(uint256)"
-```
-
-Finally, deploy the Response Trap by running the following commands:
+### Deploy Trap
 
 ```bash
-# Compile the Trap
-forge build
-
-# Deploy the Trap
-DROSERA_PRIVATE_KEY=0x.. drosera apply
+DROSERA_PRIVATE_KEY=<PRIVATE_KEY> drosera apply
 ```
 
-> Note: The `DROSERA_PRIVATE_KEY` environment variable can be used to deploy traps. You can also set it in the drosera.toml file as `private_key = "0x.."`.
-
-
-### Transfer Event Trap
-The TransferEventTrap is an example of how a Trap can parse event logs from a block and respond to a specific ERC-20 token transfer events.
-
-To deploy the Transfer Event Trap, uncomment the `transfer_event_trap` section in the `drosera.toml` file. Add the token address to the `tokenAddress` constant in the `TransferEventTrap.sol` file and then deploy the trap.
-
-### Alert Trap
-The AlertTrap is an example of how a Trap can parse event logs from a block and alert on a specific ERC-20 token transfer events.
-
-To deploy the Alert Trap, run the following commands:
+### Run Operator
 
 ```bash
-forge build
-
-DROSERA_PRIVATE_KEY=0x.. drosera -c drosera.alerts.toml.j2 apply
+drosera-operator register --eth-rpc-url <ETH_MAINNET_RPC> --eth-private-key <PRIVATE_KEY>
+drosera-operator optin --eth-rpc-url <ETH_MAINNET_RPC> --eth-private-key <PRIVATE_KEY> --trap-config-address 0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4
 ```
 
-> Note: The `.j2` file extension is used to indicate that the file is a jinja template and environment variables can be used in the file by wrapping them in `{{ env.VARIABLE_NAME }}`.
+---
 
-Once configured properly, you can test the alert integration by running the following command;
+## Network
 
-```bash
-DROSERA_PRIVATE_KEY=0x.. drosera -c drosera.alerts.toml.j2 send-test-alert --trap-name alert_trap
-```
+| Parameter | Value |
+|---|---|
+| Network | Ethereum Mainnet |
+| Chain ID | 1 |
+| Drosera Proxy | `0x01C344b8406c3237a6b9dbd06ef2832142866d87` |
+| Seed Node Relay | `https://relay.ethereum.drosera.io/` |
 
-This will run the tests and you should see the alert being triggered in the console.
+---
 
+## Author
 
-## Testing
+**DAOmindbreaker** — Built for the Drosera Network on Ethereum Mainnet.
 
-Example tests are included in the `tests` directory. They simulate how Drosera Operators execute traps and determine if a response should be triggered. To run the tests, execute the following command:
+X: [@admirjae](https://x.com/admirjae)
 
-```bash
-forge test
-```
+---
+
+## License
+
+MIT
