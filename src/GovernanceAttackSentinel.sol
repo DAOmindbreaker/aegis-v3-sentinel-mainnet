@@ -282,11 +282,10 @@ contract GovernanceAttackSentinel is ITrap {
         // G4: Active vote + power shift (proposal with unusual dynamics)
         if (current.latestVoteOpen && mid.latestVoteOpen) {
             // Vote power grew significantly between samples
-            if (current.latestVoteYea > 0 && mid.latestVoteYea > 0) {
-                uint256 yeaGrowthBps = mid.latestVoteYea > 0
-                    ? ((current.latestVoteYea - mid.latestVoteYea) * BPS_DENOM) / mid.latestVoteYea
-                    : 0;
-                if (current.latestVoteYea > mid.latestVoteYea && yeaGrowthBps > 2000) {
+            if (current.latestVoteYea > mid.latestVoteYea && mid.latestVoteYea > 0) {
+                uint256 yeaGrowthBps = ((current.latestVoteYea - mid.latestVoteYea) * BPS_DENOM)
+                    / mid.latestVoteYea;
+                if (yeaGrowthBps > 2000) {
                     signals[3] = W4; // 20%+ yea growth in one interval
                 }
             }
