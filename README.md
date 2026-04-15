@@ -6,26 +6,35 @@
 
 ## Overview
 
-This repository contains two contracts that work together as a complete Drosera Trap system on Ethereum Mainnet:
+This repository contains production traps, next-generation trap architecture, and shared libraries for the Drosera Network on Ethereum Mainnet.
+
+### Production (Live on Mainnet)
 
 | Contract | Role | Address |
 |---|---|---|
-| `AegisV3Sentinel` | Drosera Trap — collects & analyses Lido V3 stVaults state | [`0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4`](https://etherscan.io/address/0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4) |
-| `AegisV3Response` | Response contract — records risk events on-chain | [`0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92`](https://etherscan.io/address/0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92) |
+| `AegisV3Sentinel` | Drosera Trap — stVaults monitoring | [`0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4`](https://etherscan.io/address/0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4) |
+| `AegisV3Response` | Response contract — risk recorder | [`0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92`](https://etherscan.io/address/0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92) |
+
+### Next-Gen (Compiled, Tested, Ready to Deploy)
+
+| Contract | Signals | Tests | Status |
+|---|---|---|---|
+| `AegisV4Sentinel` | 12 weighted signals | 27 tests | Ready |
+| `LidoSentinelV3` | 10 weighted signals | 22 tests | Ready |
+| `GovernanceAttackSentinel` | 8 weighted signals | 28 tests | Ready |
+
+### Shared Libraries
+
+| Library | Purpose | Tests |
+|---|---|---|
+| `VelocityEngine` | Rate of change + acceleration detection | 19 tests |
+| `RiskScorer` | Weighted multi-signal risk evaluation | 28 tests |
 
 **Operator:** [`0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8`](https://etherscan.io/address/0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8)
 
-> **Part of a 2-trap mainnet deployment:**
+> **Part of a multi-trap mainnet deployment:**
 > - [Lido Sentinel Mainnet](https://github.com/DAOmindbreaker/lido-sentinel-mainnet) — Lido core protocol accounting health
-> - **Aegis V3 Sentinel** (this repo) — Lido V3 stVaults ecosystem monitoring
-
----
-
-## Why Aegis V3?
-
-Lido V3 launched stVaults on Ethereum mainnet on January 30, 2026 — introducing modular, customizable staking infrastructure. With 12+ active vaults and growing institutional adoption, monitoring the health of this ecosystem is critical.
-
-**Aegis V3 Sentinel** fills this gap by providing real-time, decentralized monitoring of the entire stVaults ecosystem through the Drosera protocol — covering bad debt, protocol pauses, vault health, redemption rates, and external share ratios.
+> - **Aegis V3 Sentinel** (this repo) — Lido V3 stVaults ecosystem + next-gen architecture
 
 ---
 
@@ -33,115 +42,39 @@ Lido V3 launched stVaults on Ethereum mainnet on January 30, 2026 — introducin
 
 | Contract | Address | Role |
 |---|---|---|
-| VaultHub | [`0x1d201BE093d847f6446530Efb0E8Fb426d176709`](https://etherscan.io/address/0x1d201BE093d847f6446530Efb0E8Fb426d176709) | stVaults coordination, vault health enforcement |
-| stETH | [`0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84`](https://etherscan.io/address/0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84) | Liquid staking token + V3 accounting functions |
-| wstETH | [`0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0`](https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0) | Wrapped stETH, redemption rate source |
-
-> **Mainnet note:** On Ethereum mainnet, Accounting functions (`getExternalShares`, `getMaxExternalRatioBP`) are integrated into the stETH contract directly, unlike Hoodi testnet where they live in a separate Accounting contract.
-
----
-
-## Data Collection
-
-Every block sample, `collect()` captures an `AegisSnapshot` struct:
-
-```solidity
-struct AegisSnapshot {
-    // VaultHub state
-    uint256 vaultsCount;           // Total connected stVaults
-    uint256 badDebt;               // Bad debt pending internalization (wei)
-    bool    protocolPaused;        // VaultHub pause status
-    uint256 unhealthyVaults;       // Count of unhealthy vaults in sample
-    uint256 totalShortfallShares;  // Aggregate health shortfall (shares)
-    uint256 sampleSize;            // Actual vaults sampled
-
-    // wstETH / stETH state
-    uint256 wstEthRate;            // ETH per 1e18 wstETH (scaled 1e18)
-    uint256 totalPooledEther;      // Total ETH in Lido (wei)
-    uint256 totalShares;           // Total stETH shares
-
-    // Accounting cross-check
-    uint256 externalShares;        // External shares minted via stVaults
-    uint256 maxExternalRatioBp;    // Protocol cap (basis points)
-    uint256 externalRatioBps;      // Current ratio (basis points)
-
-    bool    valid;                 // False if any critical call reverted
-}
-```
-
-### Adaptive Vault Sampling
-
-With 12+ vaults on mainnet (and growing), Aegis uses a **stride-based sampling pattern** to efficiently cover the vault set:
-- Samples up to 25 vaults per block
-- Uses distributed index stride for representative coverage
-- VaultHub uses **1-indexed** vault access on mainnet
+| VaultHub | [`0x1d201BE093d847f6446530Efb0E8Fb426d176709`](https://etherscan.io/address/0x1d201BE093d847f6446530Efb0E8Fb426d176709) | stVaults coordination, vault health |
+| stETH | [`0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84`](https://etherscan.io/address/0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84) | Liquid staking token + V3 accounting |
+| wstETH | [`0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0`](https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0) | Wrapped stETH, redemption rate |
+| AccountingOracle | [`0x852deD011285fe67063a08005c71a85690503Cee`](https://etherscan.io/address/0x852deD011285fe67063a08005c71a85690503Cee) | CL balance reporting (next-gen) |
+| WithdrawalQueue | [`0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1`](https://etherscan.io/address/0x889edC2eDab5f40e902b864aD4d7AdE8E412F9B1) | Pending withdrawals (next-gen) |
+| LDO Token | [`0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32`](https://etherscan.io/address/0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32) | Governance token (GovernanceSentinel) |
+| Aragon Voting | [`0x2e59A20f205bB85a89C53f1936454680651E618e`](https://etherscan.io/address/0x2e59A20f205bB85a89C53f1936454680651E618e) | DAO voting (GovernanceSentinel) |
+| Aragon Agent | [`0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c`](https://etherscan.io/address/0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c) | DAO treasury (GovernanceSentinel) |
 
 ---
 
-## Detection Logic — 5 Risk Checks
+## Production: Aegis V3 Sentinel
 
-`shouldRespond()` analyses 3 consecutive snapshots:
+### Detection Logic — 5 Checks
 
-### Check A — Bad Debt Spike (CRITICAL, id=1)
-**Immediate trigger** if `badDebtToInternalize > 0`. Any bad debt in VaultHub is an emergency — indicates under-collateralized vaults threatening stETH solvency.
-
-### Check B — Protocol Pause (CRITICAL, id=2)
-Triggers if VaultHub transitions from **unpaused to paused** between mid and current snapshots. A pause signals the protocol has detected critical conditions requiring intervention.
-
-### Check C — Vault Health Degradation (HIGH, id=3)
-Triggers if **≥12% of sampled vaults** are unhealthy in both current and mid snapshots. Proportional threshold prevents false positives from single-vault issues while catching systemic degradation.
-
-### Check D — wstETH Rate Drop (HIGH, id=4)
-Triggers if wstETH redemption rate drops **>3% (300 bps)** from oldest to current, with mid-sample confirmation. Sustained rate decline indicates potential accounting anomaly or mass slashing.
-
-### Check E — External Ratio Breach (CRITICAL, id=5)
-Triggers if external shares ratio **exceeds the protocol cap** across all 3 snapshots. A sustained breach means stVaults have minted more stETH than the protocol allows — systemic risk to all stETH holders.
-
----
-
-## Early Warning System — 4 Alert Signals
-
-`shouldAlert()` fires before hard triggers:
-
-| Alert | ID | Condition | Purpose |
+| Check | ID | Severity | Trigger |
 |---|---|---|---|
-| Unhealthy Vault | 10 | Any unhealthy vault sustained across 2 samples | Early degradation signal |
-| Rate Soft Drop | 11 | wstETH rate drop >1% (100 bps) | Pre-Check D warning |
-| Ratio Approaching Cap | 12 | External ratio within 500 bps of cap | Pre-Check E warning |
-| Pre-Bad-Debt Shortfall | 13 | Health shortfall with zero bad debt | Shortfall before bad debt materializes |
+| Bad Debt Spike | 1 | CRITICAL | Any bad debt in VaultHub |
+| Protocol Pause | 2 | CRITICAL | Pause state transition |
+| Vault Health Degradation | 3 | HIGH | >= 12% of sampled vaults unhealthy (sustained) |
+| wstETH Rate Drop | 4 | HIGH | > 3% sustained rate decline |
+| External Ratio Breach | 5 | CRITICAL | External shares ratio above cap (sustained) |
 
----
+### Early Warning — 4 Alerts
 
-## Response Contract
-
-`AegisV3Response` receives all risk reports through a single entrypoint:
-
-```solidity
-function handleRisk(uint8 checkId, uint256 a, uint256 b, uint256 c) external
-```
-
-### Events Emitted
-
-| Check ID | Event | Severity |
+| Alert | ID | Trigger |
 |---|---|---|
-| 1 | `BadDebtDetected` | CRITICAL |
-| 2 | `ProtocolPauseDetected` | CRITICAL |
-| 3 | `VaultHealthDegradation` | HIGH |
-| 4 | `RedemptionRateDrop` | HIGH |
-| 5 | `ExternalRatioBreach` | CRITICAL |
-| other | `UnknownRiskSignal` | — |
+| Unhealthy Vault | 10 | Any unhealthy vault sustained |
+| Rate Soft Drop | 11 | > 1% rate drop |
+| Ratio Approaching Cap | 12 | Within 500 bps of cap |
+| Pre-Bad-Debt Shortfall | 13 | Shortfall without bad debt |
 
-### State Tracking
-
-```solidity
-uint256 public totalRiskEvents;   // Total risk events recorded
-uint256 public lastRiskBlock;     // Last block a risk event was recorded
-uint8   public lastCheckId;       // Last check ID that triggered
-```
-
----
-
-## Trap Configuration
+### Trap Configuration
 
 ```toml
 [traps.aegis_v3_sentinel]
@@ -159,30 +92,118 @@ address                 = "0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4"
 
 ---
 
-## Dryrun Stats
+## Next-Gen Architecture
 
+### Evolution: Static Thresholds → Behavior-Based Risk Scoring
+
+| Aspect | Current (V3) | Next-Gen (V4) |
+|---|---|---|
+| Detection | Static thresholds | Velocity + behavior patterns |
+| Trigger | Binary (yes/no) | Risk score (LOW/MED/HIGH) |
+| Signals | 5 single checks | 8-12 weighted multi-signals |
+| Scope | Protocol state only | State + access + oracle + meta |
+| Attack model | Single-block anomaly | Multi-block attack sequences |
+| False positives | Filtered by confirmation | Filtered by scoring + context |
+
+### VelocityEngine Library
+
+Calculates rate of change, acceleration, and sustained direction across multi-block Drosera snapshots.
+
+```solidity
+VelocityEngine.Velocity memory v = VelocityEngine.calculate(current, mid, oldest);
+// v.magnitudeBps  — total change in basis points
+// v.declining      — is value going down?
+// v.sustained      — decline in both intervals?
+// v.accelerating   — is decline speeding up?
 ```
-trap_name         : aegis_v3_sentinel
-trap_hash         : 0xa578bf7f57448d26b70f07da3c31aebec474d86c7ccafeb982bba8cb29ab29c9
-collect() gas     : 491,399
-shouldRespond()   : 37,311
-shouldAlert()     : active
-accounts queried  : 8
-slots queried     : 83
+
+### RiskScorer Library
+
+Evaluates multiple weighted signals and produces aggregated risk levels.
+
+```solidity
+uint256[16] memory signals;
+signals[0] = RiskScorer.scoreVelocity(magnitude, threshold, weight, sustained, accelerating);
+signals[1] = RiskScorer.scoreThreshold(value, threshold, weight, scalable);
+signals[2] = RiskScorer.scoreTransition(current, previous, weight);
+signals[3] = RiskScorer.scoreProximity(value, cap, buffer, weight);
+
+RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 10);
+// risk.riskLevel: 0=NONE, 1=LOW, 2=MED, 3=HIGH
+// HIGH (>= 6000) → shouldRespond = true
+// MED  (>= 3000) → shouldAlert = true
+```
+
+### AegisV4Sentinel — 12 Signals
+
+| Signal | Weight | Detection Type |
+|---|---|---|
+| S1: Bad debt present | 3000 | Instant |
+| S2: Pause transition | 2500 | Meta |
+| S3: Unhealthy vault velocity | 1500 | Velocity |
+| S4: Unhealthy vault acceleration | 1000 | Velocity |
+| S5: wstETH rate velocity | 1500 | Velocity |
+| S6: wstETH rate acceleration | 1000 | Velocity |
+| S7: External ratio proximity | 1800 | Proximity + velocity |
+| S8: Shortfall concentration | 1200 | Behavior |
+| S9: Vault churn | 800 | Behavior |
+| S10: Near-threshold vaults | 1000 | Behavior |
+| S11: Bad debt velocity | 2000 | Velocity |
+| S12: Pool-vault divergence | 1200 | Invariant |
+
+### LidoSentinelV3 — 10 Signals
+
+| Signal | Weight | Detection Type |
+|---|---|---|
+| S1: Pooled ETH velocity | 1500 | Velocity |
+| S2: Pooled ETH acceleration | 1200 | Velocity |
+| S3: wstETH rate velocity | 1500 | Velocity (rebase-aware) |
+| S4: wstETH rate acceleration | 1000 | Velocity (rebase-aware) |
+| S5: Rate consistency breach | 2500 | Invariant |
+| S6: Oracle staleness | 800 | External dependency |
+| S7: Withdrawal queue spike | 600 | Behavior |
+| S8: Supply anomaly | 1000 | Access |
+| S9: Pause state change | 1500 | Meta |
+| S10: Rate-pool divergence | 1200 | Invariant |
+
+### GovernanceAttackSentinel — 8 Signals
+
+| Signal | Weight | Detects |
+|---|---|---|
+| G1: Vote count spike | 2000 | Rapid proposal creation |
+| G2: Treasury LDO drain | 1500 | LDO leaving DAO agent |
+| G3: Voting power concentration | 2500 | Single entity dominance (>50%) |
+| G4: Active vote + power shift | 1800 | Unusual yea growth (>20%/interval) |
+| G5: Treasury ETH drain | 1200 | ETH leaving DAO agent |
+| G6: LDO supply anomaly | 2000 | Unexpected mint/burn |
+| G7: Rapid vote execution | 1500 | Created + executed in sample window |
+| G8: Multi-proposal coordination | 1000 | 3+ active proposals at once |
+
+---
+
+## Test Coverage
+
+| Suite | Tests | Status |
+|---|---|---|
+| VelocityEngine | 19 | ✅ All passed |
+| RiskScorer | 28 | ✅ All passed |
+| LidoSentinelV3 | 22 | ✅ All passed |
+| AegisV4Sentinel | 27 | ✅ All passed |
+| GovernanceAttackSentinel | 28 | ✅ All passed |
+| Libraries integration | 2 | ✅ All passed |
+| **Total** | **126** | **✅ All passed** |
+
+```bash
+forge test -vvv
 ```
 
 ---
 
-## Mainnet Differences from Testnet
+## Security Audit
 
-| Aspect | Hoodi Testnet | Ethereum Mainnet |
-|---|---|---|
-| VaultHub | `0x4C9fFC...` | `0x1d201BE093d847f6446530Efb0E8Fb426d176709` |
-| Accounting | Separate contract (`0x9b5b78...`) | Integrated in stETH contract |
-| stETH | `0x3508A9...` | `0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84` |
-| wstETH | `0x7E99eE...` | `0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0` |
-| VaultHub indexing | 0-indexed | **1-indexed** (index 0 reverts) |
-| Active vaults | ~2-3 | 12+ and growing |
+Full audit completed — 0 Critical, 0 High, 1 Medium (fixed), 7 Low, 17 Info.
+
+The Medium finding (GA-01: potential underflow in G4 yea growth calculation) has been fixed. All contracts approved for deployment.
 
 ---
 
@@ -190,40 +211,25 @@ slots queried     : 83
 
 ```
 src/
-├── AegisV3Sentinel.sol    Drosera Trap — ITrap implementation (mainnet)
-└── AegisV3Response.sol    Response contract — on-chain risk recorder
+├── lib/
+│   ├── VelocityEngine.sol              Velocity + acceleration library
+│   └── RiskScorer.sol                  Weighted risk scoring library
+├── AegisV3Sentinel.sol                 Production trap (live on mainnet)
+├── AegisV3Response.sol                 Production response (live on mainnet)
+├── AegisV4Sentinel.sol                 Next-gen: 12-signal risk scoring
+├── AegisV4Response.sol                 Next-gen response contract
+├── LidoSentinelV3.sol                  Next-gen: 10-signal Lido monitoring
+├── LidoSentinelResponseV3.sol          Next-gen Lido response
+├── GovernanceAttackSentinel.sol        Next-gen: DAO manipulation detection
+└── GovernanceAttackResponse.sol        Governance response contract
 script/
-└── Deploy.s.sol           Forge deployment script (Response contract)
-```
-
----
-
-## Deployment
-
-### Prerequisites
-
-- [Foundry](https://book.getfoundry.sh/getting-started/installation)
-- [Drosera CLI](https://app.drosera.io/install)
-- Active [Drosera Subscription](https://app.drosera.io/early-supporters-initiative)
-
-### Deploy Response Contract
-
-```bash
-forge build
-forge script script/Deploy.s.sol:Deploy --rpc-url <ETH_MAINNET_RPC> --private-key <PRIVATE_KEY> --broadcast
-```
-
-### Deploy Trap
-
-```bash
-DROSERA_PRIVATE_KEY=<PRIVATE_KEY> drosera apply
-```
-
-### Run Operator
-
-```bash
-drosera-operator register --eth-rpc-url <ETH_MAINNET_RPC> --eth-private-key <PRIVATE_KEY>
-drosera-operator optin --eth-rpc-url <ETH_MAINNET_RPC> --eth-private-key <PRIVATE_KEY> --trap-config-address 0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4
+├── Deploy.s.sol                        Aegis V3 Response deployment
+└── DeployGov.s.sol                     Governance Response deployment
+test/
+├── Libraries.t.sol                     VelocityEngine + RiskScorer tests
+├── LidoSentinelV3.t.sol                Lido V3 next-gen tests
+├── AegisV4Sentinel.t.sol               Aegis V4 next-gen tests
+└── GovernanceAttackSentinel.t.sol       Governance Sentinel tests
 ```
 
 ---
