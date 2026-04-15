@@ -1,30 +1,17 @@
-ethereum_rpc = "https://ethereum-hoodi-rpc.publicnode.com"
-drosera_rpc = "https://relay.hoodi.drosera.io"
-eth_chain_id = 560048
-drosera_address = "0x91cB447BaFc6e0EA0F4Fe056F5a9b1F14bb06e5D"
+ethereum_rpc = "https://eth-mainnet.g.alchemy.com/v2/WxXa9WSy5hOn3Yp9LUJ-j"
+drosera_rpc = "https://relay.ethereum.drosera.io/"
+eth_chain_id = 1
+drosera_address = "0x01C344b8406c3237a6b9dbd06ef2832142866d87"
 
 [traps]
-
-[traps.hello_world]
-path = "out/HelloWorldTrap.sol/HelloWorldTrap.json"
-response_contract = "0x183D78491555cb69B68d2354F7373cc2632508C7"
-response_function = "helloworld(string)"
+[traps.aegis_v3_sentinel]
+path = "out/AegisV3Sentinel.sol/AegisV3Sentinel.json"
+response_contract = "0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92"
+response_function = "handleRisk(uint8,uint256,uint256,uint256)"
 cooldown_period_blocks = 33
 min_number_of_operators = 1
-max_number_of_operators = 2
-block_sample_size = 10
+max_number_of_operators = 3
+block_sample_size = 3
 private_trap = true
-whitelist = []
-
-# Uncomment this to deploy the TransferEventTrap
-
-# [traps.transfer_event_trap]
-# path = "out/TransferEventTrap.sol/TransferEventTrap.json"
-# response_contract = "0x183D78491555cb69B68d2354F7373cc2632508C7"
-# response_function = "helloworld(string)"
-# cooldown_period_blocks = 33
-# min_number_of_operators = 1
-# max_number_of_operators = 2
-# block_sample_size = 10
-# private_trap = true
-# whitelist = []
+whitelist = ["0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8"]
+address = "0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4"
