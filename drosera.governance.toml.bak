@@ -1,0 +1,16 @@
+ethereum_rpc = "https://eth-mainnet.g.alchemy.com/v2/WxXa9WSy5hOn3Yp9LUJ-j"
+drosera_rpc = "https://relay.ethereum.drosera.io/"
+eth_chain_id = 1
+drosera_address = "0x01C344b8406c3237a6b9dbd06ef2832142866d87"
+
+[traps]
+[traps.governance_attack_sentinel]
+path = "out/GovernanceAttackSentinel.sol/GovernanceAttackSentinel.json"
+response_contract = "0x11d41C0a821BF04E5b9Edf92a4579c4b1d9e63A2"
+response_function = "handleRisk(uint8,uint256,uint256,uint256)"
+cooldown_period_blocks = 33
+min_number_of_operators = 1
+max_number_of_operators = 3
+block_sample_size = 3
+private_trap = true
+whitelist = ["0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8"]

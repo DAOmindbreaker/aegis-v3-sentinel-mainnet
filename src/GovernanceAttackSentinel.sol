@@ -126,7 +126,7 @@ contract GovernanceAttackSentinel is ITrap {
     uint256 public constant G8_MULTI_PROPOSAL      = 3;      // 3+ active proposals
 
     // ── How many recent votes to check for active status
-    uint256 public constant RECENT_VOTES_CHECK = 5;
+    uint256 public constant RECENT_VOTES_CHECK = 1;
 
     // ── collect() ────────────────────────────
 
