@@ -8,3 +8,4 @@ drosera.toml
 lib/
 drosera.governance.toml.bak
 *.toml.bak
+*.local
