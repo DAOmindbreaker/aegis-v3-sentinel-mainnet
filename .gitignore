@@ -9,3 +9,5 @@ lib/
 drosera.governance.toml.bak
 *.toml.bak
 *.local
+drosera.toml
+drosera.governance.toml
