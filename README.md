@@ -14,12 +14,13 @@ This repository contains production traps, next-generation trap architecture, an
 |---|---|---|
 | `AegisV3Sentinel` | Drosera Trap — stVaults monitoring | [`0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4`](https://etherscan.io/address/0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4) |
 | `AegisV3Response` | Response contract — risk recorder | [`0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92`](https://etherscan.io/address/0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92) |
+| `AegisV4Response` | Response contract — V4 risk recorder | [`0x022CD6aCd644C233722e559870984095F10341a6`](https://etherscan.io/address/0x022CD6aCd644C233722e559870984095F10341a6) |
 
 ### Next-Gen (Compiled, Tested, Ready to Deploy)
 
 | Contract | Signals | Tests | Status |
 |---|---|---|---|
-| `AegisV4Sentinel` | 12 weighted signals | 27 tests | Ready |
+| `AegisV4Sentinel` | 12 weighted signals | 27 tests | ✅ Response Deployed |
 | `LidoSentinelV3` | 10 weighted signals | 22 tests | Ready |
 | `GovernanceAttackSentinel` | 8 weighted signals | 28 tests | Ready |
 
