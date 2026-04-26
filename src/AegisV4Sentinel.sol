@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {ITrap} from "drosera-contracts/interfaces/ITrap.sol";
 import {VelocityEngine} from "./lib/VelocityEngine.sol";
 import {RiskScorer} from "./lib/RiskScorer.sol";
+import {InvariantEngine} from "./lib/InvariantEngine.sol";
 
 /**
  * @title  Aegis V3 Sentinel — v4 (Next-Gen)
@@ -33,6 +34,11 @@ import {RiskScorer} from "./lib/RiskScorer.sol";
  *           S10 (w:1000) Near-threshold vaults — > 25% vaults approaching unhealthy
  *           S11 (w:2000) Bad debt velocity — bad debt increasing across samples
  *           S12 (w:1200) Pool-vault divergence — pool shrinks but vault count grows
+ *
+ *         IDT Signals (Invariant Drift Trap):
+ *           S13 (w:2200) Share-ETH backing drift — wstEthRate vs totalPooledEther/totalShares divergence
+ *           S14 (w:1800) Vault collateral erosion — shortfall/totalShares ratio increasing sustained
+ *           S15 (w:2500) External share bound breach — externalShares exceeds or approaches maxExternalRatioBp
  *
  *         Risk Levels -> Drosera mapping:
  *           HIGH (>= 6000) -> shouldRespond = true
@@ -123,6 +129,9 @@ contract AegisV4Sentinel is ITrap {
     uint256 public constant S5_RATE_VELOCITY_BPS       = 100;   // 1% per interval
     uint256 public constant S7_RATIO_PROXIMITY_BPS     = 500;   // within 5% of cap
     uint256 public constant S10_NEAR_THRESHOLD_PCT     = 2500;  // 25% of sample
+    uint256 public constant S13_SHARE_ETH_DRIFT_BPS    = 50;    // 0.5% drift threshold
+    uint256 public constant S14_COLLATERAL_EROSION_BPS = 100;   // 1% shortfall ratio
+    uint256 public constant S15_EXTERNAL_PROXIMITY_BPS = 300;   // within 3% of cap
 
     // ── Signal Weights ──────────────────────
     uint256 public constant W1  = 3000;  // Bad debt present
@@ -137,6 +146,9 @@ contract AegisV4Sentinel is ITrap {
     uint256 public constant W10 = 1000;  // Near-threshold vaults
     uint256 public constant W11 = 2000;  // Bad debt velocity
     uint256 public constant W12 = 1200;  // Pool-vault divergence
+    uint256 public constant W13 = 2200;  // IDT: Share-ETH backing drift
+    uint256 public constant W14 = 1800;  // IDT: Vault collateral erosion
+    uint256 public constant W15 = 2500;  // IDT: External share bound breach
 
     // ── collect() ────────────────────────────
 
@@ -421,8 +433,48 @@ contract AegisV4Sentinel is ITrap {
             signals[11] = W12; // same signal, either condition triggers
         }
 
+        // ── S13: Share-ETH backing drift (IDT) ──────────────────────────────────
+        // wstEthRate should equal totalPooledEther * 1e18 / totalShares
+        // Sustained drift > 50bps = accounting inconsistency
+        InvariantEngine.InvariantResult memory shareEthCurrent = InvariantEngine.checkShareEthBacking(
+            current.wstEthRate, current.totalPooledEther, current.totalShares, S13_SHARE_ETH_DRIFT_BPS
+        );
+        InvariantEngine.InvariantResult memory shareEthMid = InvariantEngine.checkShareEthBacking(
+            mid.wstEthRate, mid.totalPooledEther, mid.totalShares, S13_SHARE_ETH_DRIFT_BPS
+        );
+        if (shareEthCurrent.breached && shareEthMid.breached) {
+            signals[12] = RiskScorer.scoreVelocity(
+                shareEthCurrent.driftBps, S13_SHARE_ETH_DRIFT_BPS, W13,
+                true, InvariantEngine.isDriftWorsening(shareEthCurrent, shareEthMid)
+            );
+        }
+
+        // ── S14: Vault collateral erosion (IDT) ──────────────────────────────────
+        // totalShortfallShares / totalShares increasing sustained = systemic undercollateralization
+        InvariantEngine.InvariantResult memory collateral = InvariantEngine.checkVaultCollateralErosion(
+            current.totalShortfallShares, current.totalShares,
+            mid.totalShortfallShares, mid.totalShares,
+            S14_COLLATERAL_EROSION_BPS
+        );
+        if (collateral.sustained) {
+            signals[13] = W14;
+        }
+
+        // ── S15: External share bound breach (IDT) ────────────────────────────────
+        // externalShares must never exceed maxExternalRatioBp of totalShares
+        // Hard breach = full weight, approaching cap = half weight
+        (InvariantEngine.InvariantResult memory extBound, ) = InvariantEngine.checkExternalShareBound(
+            current.externalShares, current.totalShares,
+            current.maxExternalRatioBp, S15_EXTERNAL_PROXIMITY_BPS
+        );
+        if (extBound.breached) {
+            signals[14] = W15;
+        } else if (extBound.driftIncreasing) {
+            signals[14] = W15 / 2;
+        }
+
         // ── Evaluate risk ───────────────────
-        RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 12);
+        RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 15);
 
         if (risk.riskLevel >= RiskScorer.RISK_HIGH) {
             return (true, RiskScorer.encodePayload(risk));
@@ -506,7 +558,26 @@ contract AegisV4Sentinel is ITrap {
             signals[10] = W11 / 2; // half weight as early warning
         }
 
-        RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 12);
+        // S14: Vault collateral erosion early warning (IDT)
+        InvariantEngine.InvariantResult memory collateralAlert = InvariantEngine.checkVaultCollateralErosion(
+            current.totalShortfallShares, current.totalShares,
+            mid.totalShortfallShares, mid.totalShares,
+            S14_COLLATERAL_EROSION_BPS
+        );
+        if (collateralAlert.driftIncreasing && collateralAlert.driftBps > 0) {
+            signals[13] = W14 / 2; // half weight for alert
+        }
+
+        // S15: External share bound approaching (IDT)
+        (InvariantEngine.InvariantResult memory extBoundAlert, ) = InvariantEngine.checkExternalShareBound(
+            current.externalShares, current.totalShares,
+            current.maxExternalRatioBp, S15_EXTERNAL_PROXIMITY_BPS
+        );
+        if (extBoundAlert.breached || extBoundAlert.driftIncreasing) {
+            signals[14] = W15 / 3; // one-third weight for early alert
+        }
+
+        RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 15);
 
         if (risk.riskLevel >= RiskScorer.RISK_MED) {
             return (true, RiskScorer.encodePayload(risk));
