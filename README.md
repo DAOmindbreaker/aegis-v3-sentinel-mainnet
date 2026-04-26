@@ -20,7 +20,7 @@ This repository contains production traps, next-generation trap architecture, an
 
 | Contract | Signals | Tests | Status |
 |---|---|---|---|
-| `AegisV4Sentinel` | 12 weighted signals | 27 tests | ✅ Response Deployed |
+| `AegisV4Sentinel` | 15 weighted signals (12 + 3 IDT) | 27 tests | ✅ Response Deployed |
 | `LidoSentinelV3` | 10 weighted signals | 22 tests | Ready |
 | `GovernanceAttackSentinel` | 8 weighted signals | 28 tests | Ready |
 
@@ -29,6 +29,8 @@ This repository contains production traps, next-generation trap architecture, an
 | Library | Purpose | Tests |
 |---|---|---|
 | `VelocityEngine` | Rate of change + acceleration detection | 19 tests |
+| `RiskScorer` | Weighted multi-signal risk evaluation | 28 tests |
+| `InvariantEngine` | Protocol invariant drift monitoring (IDT) | — |
 | `RiskScorer` | Weighted multi-signal risk evaluation | 28 tests |
 
 **Operator:** [`0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8`](https://etherscan.io/address/0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8)
@@ -135,7 +137,7 @@ RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 10);
 // MED  (>= 3000) → shouldAlert = true
 ```
 
-### AegisV4Sentinel — 12 Signals
+### AegisV4Sentinel — 15 Signals (12 + 3 IDT)
 
 | Signal | Weight | Detection Type |
 |---|---|---|
@@ -151,6 +153,10 @@ RiskScorer.RiskScore memory risk = RiskScorer.evaluate(signals, 10);
 | S10: Near-threshold vaults | 1000 | Behavior |
 | S11: Bad debt velocity | 2000 | Velocity |
 | S12: Pool-vault divergence | 1200 | Invariant |
+| **— IDT Signals (InvariantEngine) —** | | |
+| S13: Share-ETH backing drift | 2200 | wstEthRate vs totalPooledEther/totalShares > 50bps sustained |
+| S14: Vault collateral erosion | 1800 | shortfall/totalShares ratio increasing sustained |
+| S15: External share bound | 2500 | externalShares exceeds/approaches maxExternalRatioBp |
 
 ### LidoSentinelV3 — 10 Signals
 
