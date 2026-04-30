@@ -1,6 +1,6 @@
-# Aegis V3 Sentinel — Ethereum Mainnet
+# Aegis Sentinel — Ethereum Mainnet
 
-> A production-grade Drosera Trap monitoring the **Lido V3 stVaults ecosystem** on Ethereum Mainnet — detecting bad debt, protocol pauses, vault health degradation, wstETH rate drops, and external ratio breaches with automated on-chain response and early warning alerts.
+> Production-grade Drosera Traps monitoring the **Lido V3 stVaults ecosystem and governance** on Ethereum Mainnet. Features velocity-based detection, weighted multi-signal risk scoring, and invariant drift monitoring — detecting not just *what* is wrong, but *how fast* things are getting worse.
 
 ---
 
@@ -15,12 +15,13 @@ This repository contains production traps, next-generation trap architecture, an
 | `AegisV3Sentinel` | Drosera Trap — stVaults monitoring | [`0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4`](https://etherscan.io/address/0xFb2e59783cA7aEE91D5043442D7834AdC99c91b4) |
 | `AegisV3Response` | Response contract — risk recorder | [`0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92`](https://etherscan.io/address/0xab09B264F89DA35E7dCA82Ba01046e4c4D152d92) |
 | `AegisV4Response` | Response contract — V4 risk recorder | [`0x022CD6aCd644C233722e559870984095F10341a6`](https://etherscan.io/address/0x022CD6aCd644C233722e559870984095F10341a6) |
+| `AegisV4Sentinel` | Drosera Trap — 15 signals + IDT | [`0xB77e5AAd667F10855ef4fF08a43e16Cf3ec0F1db`](https://etherscan.io/address/0xB77e5AAd667F10855ef4fF08a43e16Cf3ec0F1db) |
 
 ### Next-Gen (Compiled, Tested, Ready to Deploy)
 
 | Contract | Signals | Tests | Status |
 |---|---|---|---|
-| `AegisV4Sentinel` | 15 weighted signals (12 + 3 IDT) | 27 tests | ✅ Response Deployed |
+| `AegisV4Sentinel` | 15 weighted signals (12 + 3 IDT) | 27 tests | ✅ Active, live on mainnet |
 | `LidoSentinelV3` | 10 weighted signals | 22 tests | Ready |
 | `GovernanceAttackSentinel` | 8 weighted signals | 28 tests | Ready |
 
@@ -31,7 +32,6 @@ This repository contains production traps, next-generation trap architecture, an
 | `VelocityEngine` | Rate of change + acceleration detection | 19 tests |
 | `RiskScorer` | Weighted multi-signal risk evaluation | 28 tests |
 | `InvariantEngine` | Protocol invariant drift monitoring (IDT) | — |
-| `RiskScorer` | Weighted multi-signal risk evaluation | 28 tests |
 
 **Operator:** [`0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8`](https://etherscan.io/address/0x689Ad0f9cBa2dA64039cF894E9fB3Aa6266861D8)
 
