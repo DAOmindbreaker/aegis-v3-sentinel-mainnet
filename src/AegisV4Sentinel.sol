@@ -398,8 +398,9 @@ contract AegisV4Sentinel is ITrap {
             uint256 churnDelta = current.vaultsCount > oldest.vaultsCount
                 ? current.vaultsCount - oldest.vaultsCount
                 : oldest.vaultsCount - current.vaultsCount;
-            // More than 2 vaults changed in 3 blocks = unusual
-            if (churnDelta >= 2) {
+            // More than 5 vaults changed in 3 blocks = unusual
+            // Threshold raised from 2 to 5 to account for Lido V3 growth phase
+            if (churnDelta >= 5) {
                 signals[8] = W9;
             }
         }
