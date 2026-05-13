@@ -299,7 +299,8 @@ contract AegisV3Sentinel is ITrap {
         }
 
         // ── Check A: Bad debt spike ───────────
-        if (current.badDebt > 0) {
+        // Require mid confirmation to avoid false positive from transient state
+        if (current.badDebt > 0 && mid.badDebt > 0) {
             return (true, abi.encode(
                 uint8(1),
                 current.badDebt,
@@ -434,9 +435,11 @@ contract AegisV3Sentinel is ITrap {
         }
 
         // ── Alert D: Pre-bad-debt shortfall ──
+        // Minimum threshold: shortfall must be > 0.1% of totalShares to avoid noise
+        uint256 minShortfallThreshold = current.totalShares / 1000; // 0.1% of totalShares
         if (
             current.badDebt == 0 &&
-            current.totalShortfallShares > 0 &&
+            current.totalShortfallShares > minShortfallThreshold &&
             mid.totalShortfallShares > 0
         ) {
             return (true, abi.encode(

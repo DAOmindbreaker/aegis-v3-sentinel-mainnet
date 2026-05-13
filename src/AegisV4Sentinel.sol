@@ -7,7 +7,7 @@ import {RiskScorer} from "./lib/RiskScorer.sol";
 import {InvariantEngine} from "./lib/InvariantEngine.sol";
 
 /**
- * @title  Aegis V3 Sentinel — v4 (Next-Gen)
+ * @title  Aegis V4 Sentinel (Next-Gen)
  * @author DAOmindbreaker
  * @notice Next-generation Drosera Trap monitoring the Lido V3 stVaults ecosystem
  *         using velocity-based detection, multi-signal risk scoring, and behavioral
@@ -330,8 +330,8 @@ contract AegisV4Sentinel is ITrap {
         // ── Score 12 signals ────────────────
         uint256[16] memory signals;
 
-        // S1: Bad debt present (instant — any bad debt is emergency)
-        if (current.badDebt > 0) {
+        // S1: Bad debt present — require mid confirmation to avoid transient false positive
+        if (current.badDebt > 0 && mid.badDebt > 0) {
             signals[0] = W1;
         }
 
@@ -552,8 +552,9 @@ contract AegisV4Sentinel is ITrap {
             }
         }
 
-        // S11: Pre-bad-debt shortfall (bad debt = 0 but shortfall exists)
-        if (current.badDebt == 0 && current.totalShortfallShares > 0
+        // S11: Pre-bad-debt shortfall — minimum threshold to avoid noise
+        uint256 minShortfall = current.totalShares / 1000; // 0.1% of totalShares
+        if (current.badDebt == 0 && current.totalShortfallShares > minShortfall
             && mid.totalShortfallShares > 0) {
             signals[10] = W11 / 2; // half weight as early warning
         }
